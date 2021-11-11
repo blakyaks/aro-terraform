@@ -1,0 +1,156 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "pull_secret": {
+            "type": "securestring"
+        },
+        "tags": {
+            "type": "string",
+            "defaultValue": {
+              "service" : "openshift"
+            }
+        },
+        "worker_pool_name": {
+            "defaultValue": "worker",
+            "type": "string"
+        },
+        "cluster_name": {
+            "defaultValue": "arolab001",
+            "type": "string"
+        },
+        "location": {
+            "defaultValue": "uksouth",
+            "type": "string"
+        },
+        "vnet_id": {
+            "type": "string"
+        },
+        "subnet_master": {
+            "type": "string"
+        },
+        "subnet_worker": {
+            "type": "string"
+        },
+        "node_resource_group": {
+            "type": "string"
+        },
+        "domain": {
+            "type": "string"
+        },
+        "client_id": {
+            "type": "string"
+        },
+        "client_secret": {
+            "type": "securestring"
+        },
+        "pod_cidr": {
+            "type": "string"
+        },
+        "service_cidr": {
+            "type": "string"
+        },
+        "master_vm_size": {
+            "type": "string"
+        },
+        "worker_vm_size": {
+            "type": "string"
+        },
+        "worker_disk_gb": {
+            "type": "int"
+        },
+        "worker_nodes": {
+            "type": "int"
+        },
+        "api_visibility": {
+            "type": "string"
+        },
+        "ingress_visibility": {
+            "type": "string"
+        },
+        "subscription_id": {
+            "type": "string"
+        },
+        "software_defined_network": {
+            "type": "string",
+            "defaultValue": "OpenShiftSDN"
+        },
+        "master_host_encryption": {
+            "type": "string",
+            "defaultValue": "Disabled"
+        },
+        "worker_host_encryption": {
+            "type": "string",
+            "defaultValue": "Disabled"
+        },
+        "version": {
+            "type": "string",
+            "defaultValue": "4.8.11"
+        }
+    },
+    "variables": {
+        "tags": "[base64(parameters('tags'))]",
+        %{ if public_cluster == true ~}
+        "cluster_domain": "[concat(parameters('domain'), '.', parameters('location'), '.aroapp.io')]"
+        %{ else ~}
+        "cluster_domain": "[parameters('domain')]"
+        %{ endif ~}
+    },
+    "resources": [
+        {
+            "name": "[parameters('cluster_name')]",
+            "type": "Microsoft.RedHatOpenShift/openShiftClusters",
+            "apiVersion": "2021-09-01-preview",
+            "tags": "[base64ToJson(variables('tags'))]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "clusterProfile": {
+                    %{if length(pull_secret) > 0 ~}
+                    "pullSecret": "[parameters('pull_secret')]",
+                    %{ endif ~}
+                    "version": "[parameters('version')]",
+                    "domain": "[parameters('domain')]",
+                    "resourceGroupId": "[concat(parameters('subscription_id'),'/resourcegroups/',parameters('node_resource_group'))]"
+                },
+                "consoleProfile": {
+                    "url": "[concat('https://console-openshift-console.apps.', variables('cluster_domain'), '/')]"
+                },
+                "servicePrincipalProfile": {
+                    "clientId": "[parameters('client_id')]",
+                    "clientSecret": "[parameters('client_secret')]"
+                },
+                "networkProfile": {
+                    "podCidr": "[parameters('pod_cidr')]",
+                    "serviceCidr": "[parameters('service_cidr')]",
+                    "softwareDefinedNetwork": "[parameters('software_defined_network')]"
+                },
+                "masterProfile": {
+                    "vmSize": "[parameters('master_vm_size')]",
+                    "subnetId": "[concat(parameters('vnet_id'), '/subnets/', parameters('subnet_master'))]",
+                    "encryptionAtHost": "[parameters('master_host_encryption')]"
+                },
+                "workerProfiles": [
+                    {
+                        "name": "[parameters('worker_pool_name')]",
+                        "vmSize": "[parameters('worker_vm_size')]",
+                        "diskSizeGB": "[parameters('worker_disk_gb')]",
+                        "subnetId": "[concat(parameters('vnet_id'), '/subnets/', parameters('subnet_worker'))]",
+                        "count": "[parameters('worker_nodes')]",
+                        "encryptionAtHost": "[parameters('worker_host_encryption')]"
+                    }
+                ],
+                "apiserverProfile": {
+                    "visibility": "[parameters('api_visibility')]",
+                    "url": "[concat('https://api.', variables('cluster_domain'), ':6443/')]"
+                },
+                "ingressProfiles": [
+                    {
+                        "name": "default",
+                        "visibility": "[parameters('ingress_visibility')]"
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": {}
+}
